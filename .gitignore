@@ -1,0 +1,166 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Build artifacts
+/bin/
+/dist/
+/build/
+
+# IDE and editor files
+## Cursor
+.cursorrules
+.cursor/
+
+## Visual Studio Code
+.vscode/
+*.code-workspace
+
+## GoLand/IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+## Vim
+*.swp
+*.swo
+*~
+
+## Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+## Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+## macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+## Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Logs
+*.log
+logs/
+log/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage reports
+coverage.txt
+coverage.html
+coverage.out
+*.cover
+*.coverprofile
+
+# Test artifacts
+/testdata/output/
+/test-results/
+junit.xml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Configuration files with sensitive data
+config.local.*
+secrets.*
+credentials.*
+
+# Development databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Documentation build artifacts
+/docs/_build/
+/docs/site/
+
+# Email provider test artifacts
+mailhog-data/
+smtp-test-server/
+
+# Development tools
+.air.toml
+air_tmp/
+
+# Local development overrides
+docker-compose.override.yml
+.env.development.local
+
+# Performance profiling files
+*.prof
+*.pprof
+mem.prof
+cpu.prof
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Archives
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Certificates for testing
+*.pem
+*.key
+*.crt
+*.cert
+test-certs/ 

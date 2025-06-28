@@ -1,0 +1,9 @@
+Your one-time password is {{.OTP}}
+
+Please note that this code is valid for the next {{.ExpiryDuration}}
+
+
+Need help? Contact us at {{.SupportEmail}}
+
+---
+© {{now | formatTime "2006"}} {{.CompanyName}}

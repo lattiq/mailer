@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 8px;
+        padding: 40px;
+      }
+
+      .header {
+        text-align: center;
+        color: #333;
+        margin-bottom: 10px;
+      }
+
+      .logo {
+        max-width: 150px;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+      }
+
+      .otp-box {
+        padding: 5px;
+        text-align: center;
+        margin: 10px 0;
+      }
+
+      .otp-code {
+        font-size: 36px;
+        font-weight: bold;
+        color: rgb(22, 156, 118);
+      }
+
+      .footer {
+        text-align: center;
+        color: #666;
+        font-size: 12px;
+        margin-top: 30px;
+        border-top: 1px solid #eee;
+        padding-top: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        {{if .CompanyLogo}}
+        <img src="{{.CompanyLogo}}" alt="{{.CompanyName}} Logo" class="logo" />
+        {{else}}
+        <h1>{{.CompanyName}}</h1>
+        {{end}}
+      </div>
+      <div class="otp-box">
+        <p style="font-weight: bold; font-size: 18px">
+          Your one-time password is
+        </p>
+        <div class="otp-code">{{.OTP}}</div>
+        <p style="margin: 10px 0 0 0; color: #999; font-size: 10px">
+          (Please note that this code is valid for the next {{.ExpiryDuration}})
+        </p>
+      </div>
+      <div class="footer">
+        <p>
+          Need help? Contact us at
+          <a href="mailto:{{.SupportEmail}}">{{.SupportEmail}}</a>
+        </p>
+        <p>© {{now | formatTime "2006"}} {{.CompanyName}}</p>
+        <p style="font-size: 12px; color: #999">
+          This is an automated message. Please do not reply to this email.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
