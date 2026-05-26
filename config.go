@@ -62,6 +62,11 @@ const (
 
 	// ProviderSMTP represents a generic SMTP server.
 	ProviderSMTP ProviderType = "smtp"
+
+	// ProviderDryRun represents a no-delivery provider that records every
+	// send to slog instead of dispatching it. Intended for local
+	// development and tests; not for production.
+	ProviderDryRun ProviderType = "dryrun"
 )
 
 // String returns the string representation of the provider type.
@@ -72,7 +77,7 @@ func (pt ProviderType) String() string {
 // Valid checks if the provider type is supported.
 func (pt ProviderType) Valid() bool {
 	switch pt {
-	case ProviderAWSSES, ProviderSendGrid, ProviderMailgun, ProviderSMTP:
+	case ProviderAWSSES, ProviderSendGrid, ProviderMailgun, ProviderSMTP, ProviderDryRun:
 		return true
 	default:
 		return false

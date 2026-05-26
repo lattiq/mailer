@@ -258,3 +258,35 @@ func WithSMTPTLS(host, port, username, password string, skipVerify bool) Option 
 		}(),
 	})
 }
+
+// DryRunOptions selects which optional fields the dry-run provider appends
+// to each log entry. All fields default to false; the email envelope
+// (from, to, subject, body sizes) is always logged.
+type DryRunOptions struct {
+	// IncludeText, when true, appends the rendered text_body to each log
+	// entry. Useful for inspecting text-fallback templates.
+	IncludeText bool
+
+	// IncludeHTML, when true, appends the rendered html_body to each log
+	// entry. Produces large log lines for templated emails — enable only
+	// when debugging template rendering.
+	IncludeHTML bool
+}
+
+// WithDryRun creates a no-delivery dry-run provider configuration. Every
+// send is recorded to slog at info level instead of being dispatched to a
+// real email service. Intended for local development and tests — do not
+// use in production.
+//
+// Pass DryRunOptions{} for the default (envelope + body sizes only); set
+// the IncludeText / IncludeHTML fields to also dump the rendered bodies.
+func WithDryRun(opts DryRunOptions) Option {
+	settings := ProviderSettings{}
+	if opts.IncludeText {
+		settings["include_text"] = "true"
+	}
+	if opts.IncludeHTML {
+		settings["include_html"] = "true"
+	}
+	return WithProvider(ProviderDryRun, settings)
+}

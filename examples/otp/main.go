@@ -17,6 +17,8 @@ func main() {
 	config.Templates.Directory = "templates" // Point to our templates directory
 	config.Templates.Extension = []string{".html", ".text"}
 
+	// For local testing without AWS credentials, swap in:
+	//   mailer.WithDryRun(mailer.DryRunOptions{})
 	client, err := mailer.New(config, mailer.WithAWSSES("ap-south-1"))
 	if err != nil {
 		log.Fatal(err)

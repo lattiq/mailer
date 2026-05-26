@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lattiq/mailer/internal/core"
+	"github.com/lattiq/mailer/internal/providers/dryrun"
 	"github.com/lattiq/mailer/internal/providers/mailgun"
 	"github.com/lattiq/mailer/internal/providers/sendgrid"
 	"github.com/lattiq/mailer/internal/providers/ses"
@@ -496,6 +497,8 @@ func createProvider(providerType ProviderType, settings ProviderSettings) (Provi
 		return newMailgunProvider(settings)
 	case ProviderSMTP:
 		return newSMTPProvider(settings)
+	case ProviderDryRun:
+		return newDryRunProvider(settings)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -515,4 +518,8 @@ func newMailgunProvider(settings ProviderSettings) (Provider, error) {
 
 func newSMTPProvider(settings ProviderSettings) (Provider, error) {
 	return smtp.NewProvider(settings)
+}
+
+func newDryRunProvider(settings ProviderSettings) (Provider, error) {
+	return dryrun.NewProvider(settings)
 }

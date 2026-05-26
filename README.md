@@ -8,7 +8,7 @@
 
 ## Features
 
-- 🚀 **Provider Agnostic**: Support for AWS SES, SendGrid, Mailgun, and SMTP
+- 🚀 **Provider Agnostic**: Support for AWS SES, SendGrid, Mailgun, and SMTP, plus a dry-run provider for local development
 - 📧 **Template Management**: HTML/text templates with helper functions
 - 🔄 **Automatic Retries**: Exponential backoff with jitter
 - 🚦 **Rate Limiting**: Configurable rate limiting per provider or recipient
@@ -128,6 +128,29 @@ With TLS:
 client, err := mailer.New(
     mailer.DefaultConfig(),
     mailer.WithSMTPTLS("smtp.gmail.com", "465", "username", "password", false),
+)
+```
+
+### Dry Run
+
+A no-delivery provider that records every send to `slog` instead of dispatching it. Intended for local development and tests — do not use in production.
+
+```go
+client, err := mailer.New(
+    mailer.DefaultConfig(),
+    mailer.WithDryRun(mailer.DryRunOptions{}),
+)
+```
+
+By default each entry logs the envelope (from, to, subject) and body sizes. Set `IncludeText` or `IncludeHTML` to also dump the rendered bodies — useful when debugging template rendering, but produces large log lines:
+
+```go
+client, err := mailer.New(
+    mailer.DefaultConfig(),
+    mailer.WithDryRun(mailer.DryRunOptions{
+        IncludeText: true,
+        IncludeHTML: true,
+    }),
 )
 ```
 

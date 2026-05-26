@@ -2,6 +2,7 @@ package providers
 
 import (
 	"github.com/lattiq/mailer"
+	"github.com/lattiq/mailer/internal/providers/dryrun"
 	"github.com/lattiq/mailer/internal/providers/mailgun"
 	"github.com/lattiq/mailer/internal/providers/sendgrid"
 	"github.com/lattiq/mailer/internal/providers/ses"
@@ -26,4 +27,11 @@ func NewMailgunProvider(settings mailer.ProviderSettings) (mailer.Provider, erro
 // NewSMTPProvider creates a new SMTP provider.
 func NewSMTPProvider(settings mailer.ProviderSettings) (mailer.Provider, error) {
 	return smtp.NewProvider(settings)
+}
+
+// NewDryRunProvider creates a new no-delivery dry-run provider. Each Send
+// call is recorded to the application's default slog logger; intended for
+// local development and tests.
+func NewDryRunProvider(settings mailer.ProviderSettings) (mailer.Provider, error) {
+	return dryrun.NewProvider(settings)
 }
