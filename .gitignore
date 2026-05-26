@@ -1,50 +1,93 @@
-# Binaries for programs and plugins
+# Go build artifacts and modules
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
 go.work
 go.work.sum
+vendor/
 
-# Build artifacts
+# Go test coverage
+*.cover
+*.coverprofile
+coverage.html
+coverage.out
+coverage.txt
+c.out
+
+# Debug and profiling
+debug
+*.debug
+__debug_bin*
+*.pprof
+*.trace
+*.prof
+mem.prof
+cpu.prof
+
+# Build directories
+build/
+dist/
+bin/
+target/
+out/
 /bin/
 /dist/
 /build/
 
-# IDE and editor files
-## Cursor
-.cursorrules
-.cursor/
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.sw?
+*.swp
+*.swo
+*.orig
 
-## Visual Studio Code
-.vscode/
-*.code-workspace
+# Logs
+logs/
+log/
+*.log
+debug.log
+debug.txt
+pids
+*.pid
+*.seed
+*.pid.lock
 
-## GoLand/IntelliJ
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+*~
+.fuse_hidden*
+.Trash-*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+.nfs*
+
+# IDEs and editors
 .idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.cursorrules
+*.code-workspace
 *.iml
 *.ipr
 *.iws
-
-## Vim
-*.swp
-*.swo
-*~
-
-## Emacs
-*~
 \#*\#
 /.emacs.desktop
 /.emacs.desktop.lock
@@ -52,115 +95,89 @@ go.work.sum
 auto-save-list
 tramp
 .\#*
-
-## Sublime Text
 *.sublime-project
 *.sublime-workspace
 
-# OS generated files
-## macOS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Environment and configuration
+.env
+.env.*
+!.env.example
+.envrc
+*.local
+config.local.*
+local_config.*
+*.env
+.env.development.local
 
-## Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
+# Database files
+*.sqlite
+*.sqlite3
+*.sql
+!db/*.sql
+!db/migrations/*.sql
+*.dump
+*.backup
+*.db
+dump/
+backups/
 
-## Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
+# Infrastructure and deployment
+docker-compose.override.yml
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
 
-# Logs
-*.log
-logs/
-log/
+# Development and experimentation
+.dev/
+.sandbox/
+.experiments/
+.playground/
+.scratch/
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+# Security and credentials
+secrets/
+*.secret
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+credentials.json
+service-account.json
+*-credentials.json
+secrets.*
+credentials.*
+*.cert
+test-certs/
 
-# Coverage reports
-coverage.txt
-coverage.html
-coverage.out
-*.cover
-*.coverprofile
+# Postman
+*.postman_collection.json
 
-# Test artifacts
+# AI and LLM tools
+.claude/
+.cursor/
+.aider*
+.codeium/
+.copilot/
+.bolt/
+*.anthropic
+*.openai
+.ai-cache/
+llm-cache/
+
+# Repo-specific
 /testdata/output/
 /test-results/
 junit.xml
-
-# Environment files
-.env
-.env.local
-.env.*.local
-*.env
-
-# Configuration files with sensitive data
-config.local.*
-secrets.*
-credentials.*
-
-# Development databases
-*.db
-*.sqlite
-*.sqlite3
-
-# Temporary files
-tmp/
-temp/
-.tmp/
-
-# Documentation build artifacts
 /docs/_build/
 /docs/site/
-
-# Email provider test artifacts
 mailhog-data/
 smtp-test-server/
-
-# Development tools
 .air.toml
 air_tmp/
-
-# Local development overrides
-docker-compose.override.yml
-.env.development.local
-
-# Performance profiling files
-*.prof
-*.pprof
-mem.prof
-cpu.prof
-
-# Backup files
-*.bak
-*.backup
-*.orig
-
-# Archives
 *.tar
 *.tar.gz
 *.zip
 *.7z
 *.rar
-
-# Certificates for testing
-*.pem
-*.key
-*.crt
-*.cert
-test-certs/ 

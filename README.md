@@ -270,36 +270,21 @@ emails := []*mailer.Email{
 err := client.SendBatch(context.Background(), emails)
 ```
 
-## Build Information
+## Development
 
-### Getting Build Information
-
-```go
-// Get build information
-info := mailer.GetVersionInfo()
-fmt.Printf("Version: %s\n", info.Version)
-fmt.Printf("Git Commit: %s\n", info.GitCommit)
-fmt.Printf("Build Date: %s\n", info.BuildDate)
-fmt.Printf("Platform: %s\n", info.Platform)
-```
-
-### Building
-
-Use the provided Makefile for common build tasks:
+Common tasks are wrapped in the Makefile:
 
 ```bash
-# Build the project
-make build
-
-# Create a release build
-make release
-
-# Build for multiple platforms
-make build-all
-
-# Run all checks and tests
-make check
+make install       # install dev tools (golangci-lint, goimports)
+make build         # verify the package compiles
+make test          # run tests
+make lint          # run golangci-lint
+make check         # lint + test (CI gate)
+make fix           # format, lint --fix, and go mod tidy
+make patch         # bump patch version and create a git tag
 ```
+
+Run `make help` to see the full target list.
 
 ## Observability
 

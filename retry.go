@@ -109,7 +109,7 @@ func NewRateLimiter(config RateLimitConfig) *RateLimiter {
 	}
 
 	// Fill initial tokens
-	for i := 0; i < config.Burst; i++ {
+	for range config.Burst {
 		select {
 		case rl.tokens <- struct{}{}:
 		default:
@@ -138,7 +138,7 @@ func (rl *RateLimiter) Wait(ctx context.Context, email *Email) error {
 	}
 
 	// Acquire the needed tokens
-	for i := 0; i < tokensNeeded; i++ {
+	for range tokensNeeded {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

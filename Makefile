@@ -1,200 +1,100 @@
-# Makefile for lattiq/mailer
+.PHONY: help install build test format lint check fix clean version patch minor major release-version bench test-coverage security
 
-# Version and build information
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-BUILD_DATE := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-GO_VERSION := $(shell go version | cut -d' ' -f3)
+GO ?= go
 
-# Package information
-PACKAGE := github.com/lattiq/mailer
+help: ## Show available commands
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-# ldflags for version injection
-LDFLAGS := -ldflags "\
-	-X $(PACKAGE).Version=$(VERSION) \
-	-X $(PACKAGE).GitCommit=$(COMMIT) \
-	-X $(PACKAGE).GitBranch=$(BRANCH) \
-	-X $(PACKAGE).BuildDate=$(BUILD_DATE) \
-	-X $(PACKAGE).GoVersion=$(GO_VERSION)"
+install: ## Install dev tools (golangci-lint, goimports)
+	$(GO) get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	$(GO) get -tool golang.org/x/tools/cmd/goimports
 
-# Build directory
-BUILD_DIR := build
-BIN_DIR := bin
+build: ## Verify the package compiles
+	$(GO) build ./...
 
-# Default target
-.PHONY: all
-all: test lint build
+test: ## Run tests
+	$(GO) test ./...
 
-# Build the library (creates example binary for testing)
-.PHONY: build
-build:
-	@echo "Building with version: $(VERSION)"
-	go build $(LDFLAGS) ./...
+format: ## Format code and organize imports
+	$(GO) tool goimports -w .
+	$(GO) fmt ./...
 
-# Build with specific version
-.PHONY: build-version
-build-version:
-	@if [ -z "$(V)" ]; then echo "Usage: make build-version V=v1.0.1"; exit 1; fi
-	@echo "Building with version: $(V)"
-	go build -ldflags "-X $(PACKAGE).Version=$(V) -X $(PACKAGE).GitCommit=$(COMMIT) -X $(PACKAGE).BuildDate=$(BUILD_DATE)" ./...
+lint: ## Run linters (golangci-lint)
+	$(GO) tool golangci-lint run
 
-# Run tests
-.PHONY: test
-test:
-	@echo "Running tests..."
-	go test -race -cover ./...
+check: lint test ## Run all checks (lint + test)
 
-# Run tests with coverage
-.PHONY: test-coverage
-test-coverage:
-	@echo "Running tests with coverage..."
-	@mkdir -p $(BUILD_DIR)
-	go test -race -coverprofile=$(BUILD_DIR)/coverage.out ./...
-	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
-	@echo "Coverage report generated: $(BUILD_DIR)/coverage.html"
+fix: ## Auto-fix all fixable issues
+	$(GO) tool goimports -w .
+	$(GO) fmt ./...
+	$(GO) tool golangci-lint run --fix
+	$(GO) mod tidy
 
-# Run benchmarks
-.PHONY: bench
-bench:
-	@echo "Running benchmarks..."
-	go test -bench=. -benchmem ./...
+clean: ## Clean build artifacts
+	$(GO) clean ./...
 
-# Lint the code
-.PHONY: lint
-lint:
-	@echo "Linting code..."
-	@which staticcheck > /dev/null || (echo "Installing staticcheck..." && go install honnef.co/go/tools/cmd/staticcheck@latest)
-	staticcheck ./...
-	go vet ./...
-	@if [ -n "$$(gofmt -l .)" ]; then echo "Code needs formatting. Run 'make fmt'"; exit 1; fi
+# Version management
+CURRENT_VERSION := $(shell git describe --tags --exact-match 2>/dev/null || git describe --tags 2>/dev/null || echo "v0.0.0")
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
-# Format code
-.PHONY: fmt
-fmt:
-	@echo "Formatting code..."
-	gofmt -w .
+version: ## Show current version
+	@echo "Current version: $(CURRENT_VERSION)"
+	@echo "Git commit: $(GIT_COMMIT)"
+	@echo "Git branch: $(GIT_BRANCH)"
 
-# Vet code
-.PHONY: vet
-vet:
-	@echo "Vetting code..."
-	go vet ./...
+release-version:
+	@if [ -z "$(VERSION)" ]; then echo "VERSION is required"; exit 1; fi
+	@echo "New version: $(VERSION)"
+	@git tag -a "$(VERSION)" -m "Release $(VERSION)"
+	@echo "Run 'git push --tags' to publish"
 
-# Security scan
-.PHONY: security
-security:
-	@echo "Running security scan..."
-	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@latest)
+patch: ## Bump patch version and create tag
+	@CURRENT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	echo "Current version: $$CURRENT_TAG"; \
+	if [ "$$CURRENT_TAG" = "v0.0.0" ]; then \
+		NEW_VERSION="v0.0.1"; \
+	else \
+		PATCH=$$(echo $$CURRENT_TAG | sed 's/v[0-9]*\.[0-9]*\.\([0-9]*\)/\1/'); \
+		MAJOR_MINOR=$$(echo $$CURRENT_TAG | sed 's/\(v[0-9]*\.[0-9]*\)\.[0-9]*/\1/'); \
+		NEW_VERSION="$$MAJOR_MINOR.$$(expr $$PATCH + 1)"; \
+	fi; \
+	$(MAKE) release-version VERSION=$$NEW_VERSION
+
+minor: ## Bump minor version and create tag
+	@CURRENT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	echo "Current version: $$CURRENT_TAG"; \
+	if [ "$$CURRENT_TAG" = "v0.0.0" ]; then \
+		NEW_VERSION="v0.1.0"; \
+	else \
+		MAJOR=$$(echo $$CURRENT_TAG | sed 's/v\([0-9]*\)\.[0-9]*\.[0-9]*/\1/'); \
+		MINOR=$$(echo $$CURRENT_TAG | sed 's/v[0-9]*\.\([0-9]*\)\.[0-9]*/\1/'); \
+		NEW_VERSION="v$$MAJOR.$$(expr $$MINOR + 1).0"; \
+	fi; \
+	$(MAKE) release-version VERSION=$$NEW_VERSION
+
+major: ## Bump major version and create tag
+	@CURRENT_TAG=$$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0"); \
+	echo "Current version: $$CURRENT_TAG"; \
+	if [ "$$CURRENT_TAG" = "v0.0.0" ]; then \
+		NEW_VERSION="v1.0.0"; \
+	else \
+		MAJOR=$$(echo $$CURRENT_TAG | sed 's/v\([0-9]*\)\.[0-9]*\.[0-9]*/\1/'); \
+		NEW_VERSION="v$$(expr $$MAJOR + 1).0.0"; \
+	fi; \
+	$(MAKE) release-version VERSION=$$NEW_VERSION
+
+# --- Repo-specific custom targets ---
+
+bench: ## Run benchmarks
+	$(GO) test -bench=. -benchmem ./...
+
+test-coverage: ## Run tests with HTML coverage report
+	@mkdir -p build
+	$(GO) test -race -coverprofile=build/coverage.out ./...
+	$(GO) tool cover -html=build/coverage.out -o build/coverage.html
+	@echo "Coverage report: build/coverage.html"
+
+security: ## Run security scan (gosec)
+	@which gosec > /dev/null || (echo "Installing gosec..." && $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest)
 	gosec ./...
-
-# Fix linting issues
-.PHONY: lint-fix
-lint-fix: fmt tidy
-
-# Clean build artifacts
-.PHONY: clean
-clean:
-	@echo "Cleaning build artifacts..."
-	go clean ./...
-	rm -rf $(BUILD_DIR) $(BIN_DIR)
-
-# Show current version information
-.PHONY: version
-version:
-	@echo "Current version: $(VERSION)"
-	@echo "Git commit: $(COMMIT)"
-	@echo "Git branch: $(BRANCH)"
-	@echo "Build date: $(BUILD_DATE)"
-	@echo "Go version: $(GO_VERSION)"
-
-# Create a new release
-.PHONY: release
-release:
-	@if [ -z "$(V)" ]; then echo "Usage: make release V=v1.0.1"; exit 1; fi
-	@echo "Creating release $(V)..."
-	@if git rev-parse $(V) >/dev/null 2>&1; then echo "Tag $(V) already exists!"; exit 1; fi
-	git tag $(V)
-	@echo "Release $(V) created. Push with: git push origin $(V)"
-
-# Development build (no version injection)
-.PHONY: dev
-dev:
-	@echo "Development build..."
-	go build ./...
-
-# Install development dependencies
-.PHONY: deps
-deps:
-	@echo "Installing development dependencies..."
-	go mod download
-	go install honnef.co/go/tools/cmd/staticcheck@latest
-
-# Tidy up go modules
-.PHONY: tidy
-tidy:
-	@echo "Tidying go modules..."
-	go mod tidy
-
-# Verify dependencies
-.PHONY: verify
-verify:
-	@echo "Verifying dependencies..."
-	go mod verify
-
-# Cross-platform builds
-.PHONY: build-all
-build-all: build-linux build-windows build-darwin
-
-.PHONY: build-linux
-build-linux:
-	@echo "Building for Linux..."
-	@mkdir -p $(BIN_DIR)
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/mailer-linux-amd64
-
-.PHONY: build-windows  
-build-windows:
-	@echo "Building for Windows..."
-	@mkdir -p $(BIN_DIR)
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/mailer-windows-amd64.exe
-
-.PHONY: build-darwin
-build-darwin:
-	@echo "Building for macOS..."
-	@mkdir -p $(BIN_DIR)
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BIN_DIR)/mailer-darwin-amd64
-
-# Run all checks (useful for CI)
-.PHONY: check
-check: test vet lint build
-
-# Run all checks including security
-.PHONY: check-all
-check-all: test vet lint security build
-
-# Show help
-.PHONY: help
-help:
-	@echo "Available targets:"
-	@echo "  all          - Run tests, lint, and build"
-	@echo "  build        - Build with auto-detected version"
-	@echo "  build-version V=v1.0.1 - Build with specific version"
-	@echo "  build-all    - Build for all platforms"
-	@echo "  test         - Run tests"
-	@echo "  test-coverage- Run tests with coverage"
-	@echo "  bench        - Run benchmarks"
-	@echo "  lint         - Run linters"
-	@echo "  fmt          - Format code"
-	@echo "  vet          - Run go vet"
-	@echo "  security     - Run security scan (gosec)"
-	@echo "  lint-fix     - Fix linting issues"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  version      - Show version information"
-	@echo "  release V=v1.0.1 - Create a new release tag"
-	@echo "  dev          - Development build (no version injection)"
-	@echo "  deps         - Install development dependencies"
-	@echo "  tidy         - Tidy go modules"
-	@echo "  verify       - Verify dependencies"
-	@echo "  check        - Run all checks (test + lint + build)"
-	@echo "  check-all    - Run all checks including security"
-	@echo "  help         - Show this help" 

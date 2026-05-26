@@ -12,6 +12,12 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	config := mailer.DefaultConfig()
 	config.Templates.Enabled = true
 	config.Templates.Directory = "templates" // Point to our templates directory
@@ -21,14 +27,17 @@ func main() {
 	//   mailer.WithDryRun(mailer.DryRunOptions{})
 	client, err := mailer.New(config, mailer.WithAWSSES("ap-south-1"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	defer client.Close()
+	defer func() {
+		if cerr := client.Close(); cerr != nil {
+			log.Printf("client close: %v", cerr)
+		}
+	}()
 
-	// Prepare OTP data
 	otp, err := generateOTP()
 	if err != nil {
-		log.Fatal("Failed to generate OTP:", err)
+		return fmt.Errorf("generate OTP: %w", err)
 	}
 
 	otpData := OTPData{
@@ -42,7 +51,6 @@ func main() {
 		AppName:        "LattIQ Hub",
 	}
 
-	// Create template request instead of direct email
 	templateRequest := &mailer.TemplateRequest{
 		Template: "otp", // This will use otp.html and otp.text templates
 		From:     mailer.Address{Email: "otp@lattiq.com", Name: "LattIQ"},
@@ -55,13 +63,12 @@ func main() {
 		},
 	}
 
-	// Send using template
 	if err := client.SendTemplate(context.Background(), templateRequest); err != nil {
-		log.Fatal("Failed to send template-based OTP email:", err)
+		return fmt.Errorf("send template-based OTP email: %w", err)
 	}
 
-	fmt.Printf("✅ Template-based OTP email sent successfully!\n")
 	log.Println("Email sent successfully using templates!")
+	return nil
 }
 
 // OTPData represents the data structure for OTP email templates

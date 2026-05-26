@@ -1,0 +1,46 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - misspell
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - copyloopvar
+    - intrange
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+
+  # Uncomment and customize to exclude paths or suppress linters for specific files
+  # exclusions:
+  #   paths:
+  #     - scratch/
+  #   rules:
+  #     - path: _test\.go
+  #       linters:
+  #         - errcheck
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  sort-order:
+    - file

@@ -2,7 +2,6 @@ package smtp
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/smtp"
 	"strconv"
@@ -48,30 +47,16 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 	username := p.config.Get("username")
 	password := p.config.Get("password")
 	useTLS := p.config.Get("tls") == "true"
-	skipVerify := p.config.Get("tls_skip_verify") == "true"
 
 	addr := host + ":" + port
 
-	// Create TLS config if needed
-	var tlsConfig *tls.Config
-	if useTLS {
-		tlsConfig = &tls.Config{
-			ServerName:         host,
-			InsecureSkipVerify: false,            // Always verify TLS certificates for security
-			MinVersion:         tls.VersionTLS12, // Require TLS 1.2 or higher for security
-		}
-		// Only allow insecure mode if explicitly configured for development
-		if skipVerify {
-			// Log a warning that this is insecure (if logger is available)
-			tlsConfig.InsecureSkipVerify = true
-		}
-	}
+	// TLS handling is a stub: net/smtp.SendMail does STARTTLS opportunistically
+	// using its own default tls.Config, so user TLS settings (ServerName,
+	// MinVersion, InsecureSkipVerify) are not honored. A future revision
+	// should wire smtp.Client manually to apply a custom *tls.Config.
 
 	// Build email message
-	message, err := p.buildMessage(email)
-	if err != nil {
-		return nil, core.NewProviderError("smtp", "message_build_error", "failed to build message: "+err.Error())
-	}
+	message := p.buildMessage(email)
 
 	// Send email
 	var auth smtp.Auth
@@ -94,7 +79,7 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 	// Send the email
 	var sendErr error
 	if useTLS {
-		sendErr = p.sendMailTLS(addr, auth, email.From.Email, recipients, message, tlsConfig)
+		sendErr = p.sendMailTLS(addr, auth, email.From.Email, recipients, message)
 	} else {
 		sendErr = smtp.SendMail(addr, auth, email.From.Email, recipients, message)
 	}
@@ -160,7 +145,7 @@ func (p *Provider) Name() string {
 }
 
 // buildMessage builds the email message in RFC 5322 format.
-func (p *Provider) buildMessage(email *core.Email) ([]byte, error) {
+func (p *Provider) buildMessage(email *core.Email) []byte {
 	var message strings.Builder
 
 	// Headers
@@ -229,12 +214,13 @@ func (p *Provider) buildMessage(email *core.Email) ([]byte, error) {
 		message.WriteString(email.TextBody + "\r\n")
 	}
 
-	return []byte(message.String()), nil
+	return []byte(message.String())
 }
 
-// sendMailTLS sends mail using TLS.
-func (p *Provider) sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte, tlsConfig *tls.Config) error {
-	// Implementation of TLS SMTP sending
-	// This is a simplified version - production code would need more robust TLS handling
+// sendMailTLS sends mail with TLS expected. net/smtp.SendMail performs
+// STARTTLS using a default tls.Config when the server advertises it — this
+// is the stub implementation noted on Send; replace when wiring smtp.Client
+// directly.
+func (p *Provider) sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
 	return smtp.SendMail(addr, auth, from, to, msg)
 }
