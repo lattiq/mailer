@@ -1,24 +1,41 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      This email is designed for a light background only. Declaring light-only
+      tells clients (Apple Mail, Outlook) NOT to apply their dark-mode color
+      shifting, so it renders from our own background colors regardless of the
+      recipient's system/app theme.
+    -->
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
     <style>
+      :root {
+        color-scheme: light;
+        supported-color-schemes: light;
+      }
+
       body {
         background-color: #f4f4f4;
         margin: 0;
-        padding: 20px;
+        padding: 0;
       }
 
       .container {
-        max-width: 600px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 8px;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        background: #ffffff;
+        border-radius: 0;
         padding: 40px;
+        box-sizing: border-box;
       }
 
       .header {
         text-align: center;
-        color: #333;
+        color: #333333;
         margin-bottom: 10px;
       }
 
@@ -43,10 +60,10 @@
 
       .footer {
         text-align: center;
-        color: #666;
+        color: #666666;
         font-size: 12px;
         margin-top: 30px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid #eeeeee;
         padding-top: 20px;
       }
     </style>
@@ -66,7 +83,7 @@
           Your one-time password is
         </p>
         <div class="otp-code">{{.OTP}}</div>
-        <p style="margin: 10px 0 0 0; color: #999; font-size: 10px">
+        <p style="margin: 10px 0 0 0; color: #999999; font-size: 10px">
           (Please note that this code is valid for the next {{.ExpiryDuration}})
         </p>
       </div>
@@ -76,7 +93,7 @@
           <a href="mailto:{{.SupportEmail}}">{{.SupportEmail}}</a>
         </p>
         <p>© {{now | formatTime "2006"}} {{.CompanyName}}</p>
-        <p style="font-size: 12px; color: #999">
+        <p style="font-size: 12px; color: #999999">
           This is an automated message. Please do not reply to this email.
         </p>
       </div>

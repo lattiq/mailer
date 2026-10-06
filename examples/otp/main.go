@@ -46,7 +46,7 @@ func run() error {
 		ExpiryTime:     getOTPExpiryTime(10), // 10 minutes expiry
 		ExpiryDuration: fmt.Sprintf("%d minutes", 10),
 		CompanyName:    "LattIQ",
-		CompanyLogo:    "https://i.postimg.cc/Mp3s4bHn/lattiq-logo-black.png",
+		CompanyLogo:    "https://assets.lattiq.com/logos/lattiq-logo-black-email.png",
 		SupportEmail:   "support@lattiq.com",
 		AppName:        "LattIQ Hub",
 	}
