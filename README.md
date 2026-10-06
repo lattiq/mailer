@@ -127,9 +127,11 @@ With TLS:
 ```go
 client, err := mailer.New(
     mailer.DefaultConfig(),
-    mailer.WithSMTPTLS("smtp.gmail.com", "465", "username", "password", false),
+    mailer.WithSMTPTLS("smtp.gmail.com", "587", "username", "password", false),
 )
 ```
+
+The SMTP provider upgrades the connection with STARTTLS (port 587). Implicit TLS on port 465 is not supported.
 
 ### Dry Run
 
@@ -249,6 +251,48 @@ templateRequest := &mailer.TemplateRequest{
 err := client.SendTemplate(context.Background(), templateRequest)
 ```
 
+### Inline Images
+
+Embed an image in the email instead of linking to it, so it displays without the recipient clicking "download pictures" (Outlook blocks remote images by default). Attach it with `Inline: true` and reference it from the template with the `cid` function:
+
+```html
+<img src="{{cid "logo"}}" width="150" height="40" alt="Example" />
+```
+
+```go
+//go:embed logo.png
+var logoPNG []byte
+
+err := client.SendTemplate(ctx, &mailer.TemplateRequest{
+    Template: "otp",
+    // ...
+    Attachments: []mailer.Attachment{{
+        Filename:    "logo.png",
+        ContentType: "image/png",
+        Data:        bytes.NewReader(logoPNG),
+        Inline:      true,
+        ContentID:   "logo",
+    }},
+})
+```
+
+- Use `{{cid ...}}` rather than writing `cid:` into the template data: `html/template` treats `cid:` as unsafe and replaces it with `#ZgotmplZ`.
+- Pass a seekable reader such as `bytes.NewReader`. Retries rewind and re-read it; a non-seekable reader would be empty on a retry.
+- Mailgun uses the Content-ID as the uploaded file name and infers the image type from it, so keep the extension (`ContentID: "logo.png"`, referenced as `{{cid "logo.png"}}`).
+- Attachments without `Inline` are sent as regular downloadable attachments. Both kinds work on every provider; SES switches to `SendRawEmail` when an email has attachments or headers.
+
+### Priority and Custom Headers
+
+```go
+email.Priority = mailer.PriorityHigh                  // adds X-Priority: 2, Importance: high
+email.Headers = map[string]string{"X-Category": "otp"}
+```
+
+- `PriorityHigh` and `PriorityUrgent` add `X-Priority` and `Importance` headers on every provider. `PriorityLow` and `PriorityNormal` add nothing: `PriorityLow` is the zero value, so it cannot be told apart from an unset priority.
+- A custom header with the same name overrides the priority headers.
+- Custom headers must not contain line breaks and cannot override headers the mailer sets itself (`From`, `To`, `Cc`, `Bcc`, `Subject`, `Date`, `MIME-Version`, `Content-Type`, `Content-Transfer-Encoding`). Such emails fail validation.
+- Non-ASCII subjects and header values are encoded automatically.
+
 ## Batch Operations
 
 ```go
@@ -280,11 +324,16 @@ make build         # verify the package compiles
 make test          # run tests
 make lint          # run golangci-lint
 make check         # lint + test (CI gate)
+make security      # SAST: govulncheck + gosec (high severity)
+make sbom          # CycloneDX SBOM (syft) + vulnerability scan (grype, fails on High)
+make ci            # everything above: run before every commit
 make fix           # format, lint --fix, and go mod tidy
 make patch         # bump patch version and create a git tag
 ```
 
 Run `make help` to see the full target list.
+
+`make ci` has no GitHub workflow behind it yet, so run it locally before committing. `make sbom` needs `syft` and `grype` (`brew install syft grype`). govulncheck also reports vulnerabilities in the Go standard library you build with, so keep your Go toolchain on the latest patch release.
 
 ## Observability
 
@@ -360,6 +409,8 @@ if err := email.Validate(); err != nil {
     log.Printf("Email validation failed: %v", err)
 }
 ```
+
+`Send` and `SendTemplate` validate automatically. Validation checks the addresses, requires a subject and a body, and rejects line breaks in the subject or custom headers (header injection) and custom headers that override mailer-set ones.
 
 ## Performance Considerations
 

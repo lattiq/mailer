@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/mail"
+	"net/textproto"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -135,6 +136,35 @@ func (a *Attachment) DetectContentType() string {
 	}
 }
 
+// ReadData returns the attachment content. Data is rewound first when it
+// supports seeking, so a retried send does not read an exhausted reader;
+// pass a seekable reader such as *bytes.Reader for attachments that must
+// survive retries.
+func (a *Attachment) ReadData() ([]byte, error) {
+	if a.Data == nil {
+		return nil, fmt.Errorf("attachment %q has no data", a.Filename)
+	}
+	if s, ok := a.Data.(io.Seeker); ok {
+		if _, err := s.Seek(0, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("rewind attachment %q: %w", a.Filename, err)
+		}
+	}
+	data, err := io.ReadAll(a.Data)
+	if err != nil {
+		return nil, fmt.Errorf("read attachment %q: %w", a.Filename, err)
+	}
+	return data, nil
+}
+
+// InlineContentID returns the Content-ID an inline attachment is referenced
+// by (cid:<id>), falling back to the filename when ContentID is empty.
+func (a *Attachment) InlineContentID() string {
+	if a.ContentID != "" {
+		return a.ContentID
+	}
+	return a.Filename
+}
+
 // Email represents an email message.
 type Email struct {
 	From        Address           `json:"from"`        // Sender address
@@ -190,11 +220,49 @@ func (e *Email) Validate() error {
 	if strings.TrimSpace(e.Subject) == "" {
 		return &ValidationError{Field: "subject", Message: "subject is required"}
 	}
+	if strings.ContainsAny(e.Subject, "\r\n") {
+		return &ValidationError{Field: "subject", Message: "subject must not contain line breaks"}
+	}
+
+	for name, value := range e.Headers {
+		if err := ValidateHeader(name, value); err != nil {
+			return err
+		}
+	}
 
 	if strings.TrimSpace(e.TextBody) == "" && strings.TrimSpace(e.HTMLBody) == "" {
 		return &ValidationError{Field: "body", Message: "either text or HTML body is required"}
 	}
 
+	return nil
+}
+
+// reservedHeaders are written by the library itself; letting a custom header
+// set them would duplicate them or break the MIME structure.
+var reservedHeaders = map[string]bool{
+	"From": true, "To": true, "Cc": true, "Bcc": true, "Subject": true,
+	"Date": true, "Mime-Version": true, "Content-Type": true,
+	"Content-Transfer-Encoding": true,
+}
+
+// ValidateHeader checks a custom header. Line breaks are rejected because a
+// value containing "\r\n" would start a new header (header injection).
+func ValidateHeader(name, value string) error {
+	if name == "" {
+		return &ValidationError{Field: "headers", Message: "header name is required"}
+	}
+	for _, c := range name {
+		// RFC 5322 field names: printable ASCII except ':'.
+		if c < 33 || c > 126 || c == ':' {
+			return &ValidationError{Field: "headers", Message: "invalid header name " + strconv.Quote(name)}
+		}
+	}
+	if reservedHeaders[textproto.CanonicalMIMEHeaderKey(name)] {
+		return &ValidationError{Field: "headers", Message: "header " + name + " is set by the mailer and cannot be overridden"}
+	}
+	if strings.ContainsAny(value, "\r\n") {
+		return &ValidationError{Field: "headers", Message: "header " + name + " must not contain line breaks"}
+	}
 	return nil
 }
 
@@ -259,6 +327,10 @@ type TemplateRequest struct {
 	// Headers contains custom email headers.
 	Headers map[string]string
 
+	// Attachments contains file attachments, including inline images the
+	// template references as cid:<ContentID>.
+	Attachments []Attachment
+
 	// Metadata contains arbitrary data for tracking and analytics.
 	Metadata map[string]interface{}
 }
@@ -309,6 +381,43 @@ func (p Priority) String() string {
 	default:
 		return "normal"
 	}
+}
+
+// Headers returns the X-Priority and Importance headers for p, or nil.
+// Only High and Urgent produce headers: PriorityLow is the zero value, so it
+// cannot be told apart from an unset priority, and marking every such email
+// as low importance would deprioritise ordinary mail.
+func (p Priority) Headers() map[string]string {
+	switch p {
+	case PriorityHigh:
+		return map[string]string{"X-Priority": "2", "Importance": "high"}
+	case PriorityUrgent:
+		return map[string]string{"X-Priority": "1", "Importance": "high"}
+	default:
+		return nil
+	}
+}
+
+// HeadersWithPriority returns the custom headers merged with the priority
+// headers. Custom headers win, compared case-insensitively, so callers can
+// still set X-Priority directly.
+func (e *Email) HeadersWithPriority() map[string]string {
+	priority := e.Priority.Headers()
+	if len(priority) == 0 {
+		return e.Headers
+	}
+	merged := make(map[string]string, len(priority)+len(e.Headers))
+	custom := make(map[string]bool, len(e.Headers))
+	for name, value := range e.Headers {
+		merged[name] = value
+		custom[textproto.CanonicalMIMEHeaderKey(name)] = true
+	}
+	for name, value := range priority {
+		if !custom[name] {
+			merged[name] = value
+		}
+	}
+	return merged
 }
 
 // SendResult contains the result of sending a single email.

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/smtp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/lattiq/mailer/internal/core"
+	"github.com/lattiq/mailer/internal/message"
 )
 
 // Provider implements the core.Provider interface for SMTP.
@@ -56,7 +56,10 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 	// should wire smtp.Client manually to apply a custom *tls.Config.
 
 	// Build email message
-	message := p.buildMessage(email)
+	msg, err := message.Build(email)
+	if err != nil {
+		return nil, core.NewProviderError("smtp", "build_error", "failed to build message: "+err.Error())
+	}
 
 	// Send email
 	var auth smtp.Auth
@@ -64,24 +67,18 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 		auth = smtp.PlainAuth("", username, password, host)
 	}
 
-	// Get all recipient addresses
+	// Envelope recipients: To, Cc and Bcc (Bcc is not in the message headers)
 	var recipients []string
-	for _, to := range email.To {
-		recipients = append(recipients, to.Email)
-	}
-	for _, cc := range email.CC {
-		recipients = append(recipients, cc.Email)
-	}
-	for _, bcc := range email.BCC {
-		recipients = append(recipients, bcc.Email)
+	for _, r := range email.AllRecipients() {
+		recipients = append(recipients, r.Email)
 	}
 
 	// Send the email
 	var sendErr error
 	if useTLS {
-		sendErr = p.sendMailTLS(addr, auth, email.From.Email, recipients, message)
+		sendErr = p.sendMailTLS(addr, auth, email.From.Email, recipients, msg)
 	} else {
-		sendErr = smtp.SendMail(addr, auth, email.From.Email, recipients, message)
+		sendErr = smtp.SendMail(addr, auth, email.From.Email, recipients, msg)
 	}
 
 	if sendErr != nil {
@@ -142,79 +139,6 @@ func (p *Provider) ValidateConfig() error {
 // Name returns the provider name.
 func (p *Provider) Name() string {
 	return "smtp"
-}
-
-// buildMessage builds the email message in RFC 5322 format.
-func (p *Provider) buildMessage(email *core.Email) []byte {
-	var message strings.Builder
-
-	// Headers
-	message.WriteString("From: " + email.From.String() + "\r\n")
-
-	if len(email.To) > 0 {
-		var toAddrs []string
-		for _, to := range email.To {
-			toAddrs = append(toAddrs, to.String())
-		}
-		message.WriteString("To: " + strings.Join(toAddrs, ", ") + "\r\n")
-	}
-
-	if len(email.CC) > 0 {
-		var ccAddrs []string
-		for _, cc := range email.CC {
-			ccAddrs = append(ccAddrs, cc.String())
-		}
-		message.WriteString("Cc: " + strings.Join(ccAddrs, ", ") + "\r\n")
-	}
-
-	message.WriteString("Subject: " + email.Subject + "\r\n")
-	message.WriteString("Date: " + time.Now().Format(time.RFC1123Z) + "\r\n")
-	message.WriteString("MIME-Version: 1.0\r\n")
-
-	// Add custom headers
-	for key, value := range email.Headers {
-		message.WriteString(key + ": " + value + "\r\n")
-	}
-
-	// Handle multipart message if both HTML and text bodies exist
-	if email.HTMLBody != "" && email.TextBody != "" {
-		boundary := fmt.Sprintf("boundary_%d", time.Now().UnixNano())
-		message.WriteString("Content-Type: multipart/alternative; boundary=" + boundary + "\r\n")
-		message.WriteString("\r\n")
-
-		// Text part
-		message.WriteString("--" + boundary + "\r\n")
-		message.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-		message.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
-		message.WriteString("\r\n")
-		message.WriteString(email.TextBody + "\r\n")
-		message.WriteString("\r\n")
-
-		// HTML part
-		message.WriteString("--" + boundary + "\r\n")
-		message.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
-		message.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
-		message.WriteString("\r\n")
-		message.WriteString(email.HTMLBody + "\r\n")
-		message.WriteString("\r\n")
-
-		// End boundary
-		message.WriteString("--" + boundary + "--\r\n")
-	} else if email.HTMLBody != "" {
-		// HTML only
-		message.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
-		message.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
-		message.WriteString("\r\n")
-		message.WriteString(email.HTMLBody + "\r\n")
-	} else {
-		// Text only
-		message.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-		message.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
-		message.WriteString("\r\n")
-		message.WriteString(email.TextBody + "\r\n")
-	}
-
-	return []byte(message.String())
 }
 
 // sendMailTLS sends mail with TLS expected. net/smtp.SendMail performs

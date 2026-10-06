@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,22 +95,22 @@ func (te *TemplateEngineImpl) RegisterTemplate(name string, content string) erro
 
 // LoadTemplatesFromDir loads all templates from the specified directory.
 func (te *TemplateEngineImpl) LoadTemplatesFromDir(dir string) error {
-	// Clean and validate the directory path
-	cleanDir := filepath.Clean(dir)
+	// os.Root confines every read to dir: a path or symlink that resolves
+	// outside it fails. Checking a path and then opening it would leave a
+	// window for a symlink swap (TOCTOU) in between.
+	root, err := os.OpenRoot(filepath.Clean(dir))
+	if err != nil {
+		return fmt.Errorf("failed to open template directory %s: %w", dir, err)
+	}
+	defer func() { _ = root.Close() }()
 
-	return filepath.WalkDir(cleanDir, func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if d.IsDir() {
 			return nil
-		}
-
-		// Security: Validate that the path is within the specified directory
-		cleanPath := filepath.Clean(path)
-		if !isPathWithinDir(cleanPath, cleanDir) {
-			return fmt.Errorf("security error: path traversal detected: %s", path)
 		}
 
 		// Check if file has a valid template extension
@@ -126,23 +127,17 @@ func (te *TemplateEngineImpl) LoadTemplatesFromDir(dir string) error {
 			return nil
 		}
 
-		// Read template file with validated path
-		content, err := os.ReadFile(cleanPath)
+		content, err := root.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("failed to read template file %s: %w", cleanPath, err)
-		}
-
-		// Generate template name from file path
-		relativePath, err := filepath.Rel(dir, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
+			return fmt.Errorf("failed to read template file %s: %w", filepath.Join(dir, path), err)
 		}
 
 		// Remove extension from template name
-		templateName := strings.TrimSuffix(relativePath, ext)
+		templateName := strings.TrimSuffix(path, ext)
 
-		// Replace path separators with dots for hierarchical templates
-		templateName = strings.ReplaceAll(templateName, string(filepath.Separator), ".")
+		// Replace path separators with dots for hierarchical templates.
+		// Paths from root.FS() always use "/".
+		templateName = strings.ReplaceAll(templateName, "/", ".")
 
 		// Register the template
 		if err := te.RegisterTemplate(templateName, string(content)); err != nil {
@@ -206,6 +201,13 @@ func (te *TemplateEngineImpl) getTemplateFuncs() template.FuncMap {
 				return defaultValue
 			}
 			return value
+		},
+		// cid references an inline attachment by its Content-ID, e.g.
+		// <img src="{{cid "logo"}}">. html/template would otherwise replace
+		// the cid: scheme with #ZgotmplZ. The id is escaped, so it cannot
+		// smuggle in another scheme.
+		"cid": func(contentID string) template.URL {
+			return template.URL("cid:" + url.PathEscape(contentID)) // #nosec G203 -- fixed cid: scheme, escaped id
 		},
 	}
 
@@ -289,29 +291,6 @@ func (te *TemplateEngineImpl) getTextTemplateFuncs() textTemplate.FuncMap {
 			return value
 		},
 	}
-}
-
-// isPathWithinDir checks if a given path is within the specified directory to prevent path traversal attacks.
-func isPathWithinDir(path, dir string) bool {
-	// Get absolute paths
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
-
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return false
-	}
-
-	// Check if the path starts with the directory
-	rel, err := filepath.Rel(absDir, absPath)
-	if err != nil {
-		return false
-	}
-
-	// If rel starts with "..", it's outside the directory
-	return !strings.HasPrefix(rel, "..") && rel != ".."
 }
 
 // Close closes the template engine and releases any resources.

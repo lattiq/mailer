@@ -1,6 +1,7 @@
 package mailgun
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -47,6 +48,10 @@ func NewProvider(settings core.ProviderSettings) (core.Provider, error) {
 
 // Send sends a single email using Mailgun.
 func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResult, error) {
+	if len(email.To) == 0 {
+		return nil, core.NewValidationError("to", "at least one recipient is required")
+	}
+
 	// Create message - note: v4 API uses NewMessage as a standalone function
 	message := mailgun.NewMessage(email.From.String(), email.Subject, email.TextBody, email.To[0].String())
 
@@ -72,33 +77,25 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 		message.SetHTML(email.HTMLBody)
 	}
 
-	// Add custom headers
-	for key, value := range email.Headers {
+	// Add custom and priority headers
+	for key, value := range email.HeadersWithPriority() {
 		message.AddHeader(key, value)
 	}
 
-	// Set priority headers if specified
-	switch email.Priority {
-	case core.PriorityHigh:
-		message.AddHeader("X-Priority", "2")
-		message.AddHeader("Importance", "high")
-	case core.PriorityUrgent:
-		message.AddHeader("X-Priority", "1")
-		message.AddHeader("Importance", "high")
-	case core.PriorityLow:
-		message.AddHeader("X-Priority", "4")
-		message.AddHeader("Importance", "low")
-	}
-
-	// Add attachments
-	for _, attachment := range email.Attachments {
-		if attachment.Data != nil {
-			// Read the data into a byte slice
-			data, err := io.ReadAll(attachment.Data)
-			if err != nil {
-				return nil, core.NewProviderError("mailgun", "attachment_read_failed", err.Error())
-			}
-			message.AddBufferAttachment(attachment.Filename, data)
+	// Add attachments. Mailgun uses an inline file's name as its Content-ID,
+	// so inline files are named after InlineContentID and the HTML references
+	// them as cid:<ContentID>. Mailgun infers the content type from that name,
+	// so a ContentID should keep the file extension (e.g. "logo.png").
+	for i := range email.Attachments {
+		att := &email.Attachments[i]
+		data, err := att.ReadData()
+		if err != nil {
+			return nil, core.NewProviderError("mailgun", "attachment_read_failed", err.Error())
+		}
+		if att.Inline {
+			message.AddReaderInline(att.InlineContentID(), io.NopCloser(bytes.NewReader(data)))
+		} else {
+			message.AddBufferAttachment(att.Filename, data)
 		}
 	}
 

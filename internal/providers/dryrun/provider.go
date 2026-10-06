@@ -55,9 +55,11 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 		"cc", addressList(email.CC),
 		"bcc", addressList(email.BCC),
 		"subject", email.Subject,
+		"priority", email.Priority.String(),
 		"text_body_size", len(email.TextBody),
 		"html_body_size", len(email.HTMLBody),
 		"attachments", len(email.Attachments),
+		"attachment_names", attachmentList(email.Attachments),
 	}
 	if p.includeText {
 		attrs = append(attrs, "text_body", email.TextBody)
@@ -115,6 +117,23 @@ func addressList(addrs []core.Address) []string {
 	out := make([]string, len(addrs))
 	for i, a := range addrs {
 		out[i] = a.String()
+	}
+	return out
+}
+
+// attachmentList names each attachment, marking inline ones with the
+// cid: reference the HTML must use, e.g. "logo.png (inline cid:logo)".
+// It does not read attachment data.
+func attachmentList(atts []core.Attachment) []string {
+	if len(atts) == 0 {
+		return nil
+	}
+	out := make([]string, len(atts))
+	for i := range atts {
+		out[i] = atts[i].Filename
+		if atts[i].Inline {
+			out[i] += " (inline cid:" + atts[i].InlineContentID() + ")"
+		}
 	}
 	return out
 }

@@ -2,6 +2,7 @@ package sendgrid
 
 import (
 	"context"
+	"encoding/base64"
 	"time"
 
 	"github.com/sendgrid/sendgrid-go"
@@ -35,6 +36,37 @@ func NewProvider(settings core.ProviderSettings) (core.Provider, error) {
 
 // Send sends a single email using SendGrid.
 func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResult, error) {
+	message, err := buildMessage(email)
+	if err != nil {
+		return nil, err
+	}
+
+	// Send the email
+	response, err := p.client.Send(message)
+	if err != nil {
+		return nil, core.NewProviderError("sendgrid", "send_error", "failed to send email: "+err.Error())
+	}
+
+	// Check response status
+	if response.StatusCode >= 400 {
+		return nil, core.NewProviderError("sendgrid", "api_error", "SendGrid API error: "+response.Body)
+	}
+
+	// Extract message ID from headers (SendGrid provides X-Message-Id)
+	messageID := response.Headers["X-Message-Id"]
+	if len(messageID) == 0 {
+		messageID = []string{"unknown"}
+	}
+
+	return &core.SendResult{
+		MessageID: messageID[0],
+		Provider:  p.Name(),
+		Timestamp: time.Now(),
+	}, nil
+}
+
+// buildMessage converts email to a SendGrid v3 mail request.
+func buildMessage(email *core.Email) (*mail.SGMailV3, error) {
 	// Convert from address
 	from := mail.NewEmail(email.From.Name, email.From.Email)
 
@@ -71,38 +103,37 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 		message.Personalizations = []*mail.Personalization{personalization}
 	}
 
-	// Add custom headers
-	if len(email.Headers) > 0 {
+	// Add custom and priority headers
+	if headers := email.HeadersWithPriority(); len(headers) > 0 {
 		if message.Headers == nil {
 			message.Headers = make(map[string]string)
 		}
-		for key, value := range email.Headers {
+		for key, value := range headers {
 			message.Headers[key] = value
 		}
 	}
 
-	// Send the email
-	response, err := p.client.Send(message)
-	if err != nil {
-		return nil, core.NewProviderError("sendgrid", "send_error", "failed to send email: "+err.Error())
+	// Attachments are base64 in the API payload; inline ones are
+	// referenced from the HTML as cid:<ContentID>.
+	for i := range email.Attachments {
+		att := &email.Attachments[i]
+		data, err := att.ReadData()
+		if err != nil {
+			return nil, core.NewProviderError("sendgrid", "attachment_read_failed", err.Error())
+		}
+		a := mail.NewAttachment().
+			SetContent(base64.StdEncoding.EncodeToString(data)).
+			SetType(att.DetectContentType()).
+			SetFilename(att.Filename)
+		if att.Inline {
+			a.SetDisposition("inline").SetContentID(att.InlineContentID())
+		} else {
+			a.SetDisposition("attachment")
+		}
+		message.AddAttachment(a)
 	}
 
-	// Check response status
-	if response.StatusCode >= 400 {
-		return nil, core.NewProviderError("sendgrid", "api_error", "SendGrid API error: "+response.Body)
-	}
-
-	// Extract message ID from headers (SendGrid provides X-Message-Id)
-	messageID := response.Headers["X-Message-Id"]
-	if len(messageID) == 0 {
-		messageID = []string{"unknown"}
-	}
-
-	return &core.SendResult{
-		MessageID: messageID[0],
-		Provider:  p.Name(),
-		Timestamp: time.Now(),
-	}, nil
+	return message, nil
 }
 
 // SendBatch sends multiple emails individually.

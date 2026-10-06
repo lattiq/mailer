@@ -372,16 +372,17 @@ func (c *Client) SendTemplate(ctx context.Context, req *TemplateRequest) error {
 
 	// Create email from template request
 	email := &Email{
-		From:     req.From,
-		To:       req.To,
-		CC:       req.CC,
-		BCC:      req.BCC,
-		Subject:  renderedSubject,
-		HTMLBody: renderedHTMLBody,
-		TextBody: renderedTextBody,
-		Headers:  req.Headers,
-		Priority: req.Priority,
-		Metadata: metadata,
+		From:        req.From,
+		To:          req.To,
+		CC:          req.CC,
+		BCC:         req.BCC,
+		Subject:     renderedSubject,
+		HTMLBody:    renderedHTMLBody,
+		TextBody:    renderedTextBody,
+		Headers:     req.Headers,
+		Attachments: req.Attachments,
+		Priority:    req.Priority,
+		Metadata:    metadata,
 	}
 
 	// Send the email

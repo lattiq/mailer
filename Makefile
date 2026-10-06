@@ -1,4 +1,4 @@
-.PHONY: help install build test format lint check fix clean version patch minor major release-version bench test-coverage security
+.PHONY: help install build test format lint check fix clean version patch minor major release-version bench test-coverage security sbom ci
 
 GO ?= go
 
@@ -95,6 +95,22 @@ test-coverage: ## Run tests with HTML coverage report
 	$(GO) tool cover -html=build/coverage.out -o build/coverage.html
 	@echo "Coverage report: build/coverage.html"
 
-security: ## Run security scan (gosec)
-	@which gosec > /dev/null || (echo "Installing gosec..." && $(GO) install github.com/securego/gosec/v2/cmd/gosec@latest)
-	gosec ./...
+# Scanners run via `go run` at pinned versions rather than as go.mod tools:
+# a library's go.mod requirements feed into every consumer's module graph.
+GOVULNCHECK_VERSION ?= v1.8.0
+GOSEC_VERSION ?= v2.29.0
+SBOM_FILE := build/mailer-sbom.cyclonedx.json
+
+security: ## Run SAST (govulncheck, gosec high severity)
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	$(GO) run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -quiet -severity high -confidence medium -exclude-dir=.scratch ./...
+
+sbom: ## Generate CycloneDX SBOM and fail on High vulnerabilities (needs syft, grype)
+	@command -v syft > /dev/null || { echo "syft not found: brew install syft"; exit 1; }
+	@command -v grype > /dev/null || { echo "grype not found: brew install grype"; exit 1; }
+	@mkdir -p build
+	syft dir:. --source-name mailer --source-version $(CURRENT_VERSION) --exclude './.scratch/**' --exclude './build/**' -o cyclonedx-json=$(SBOM_FILE)
+	grype sbom:$(SBOM_FILE) --fail-on high
+	@echo "SBOM: $(SBOM_FILE)"
+
+ci: check security sbom ## Run every pre-commit check (lint, test, SAST, SBOM)

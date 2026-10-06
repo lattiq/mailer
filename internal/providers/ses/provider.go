@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 
 	"github.com/lattiq/mailer/internal/core"
+	"github.com/lattiq/mailer/internal/message"
 )
 
 // Provider implements the core.Provider interface for AWS SES.
@@ -62,6 +63,12 @@ func NewProvider(settings core.ProviderSettings) (core.Provider, error) {
 
 // Send sends a single email using AWS SES.
 func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResult, error) {
+	// SendEmail only carries subject and bodies, so attachments and custom or
+	// priority headers need a raw MIME message.
+	if len(email.Attachments) > 0 || len(email.HeadersWithPriority()) > 0 {
+		return p.sendRaw(ctx, email)
+	}
+
 	input := &ses.SendEmailInput{
 		Source: aws.String(email.From.String()),
 		Destination: &types.Destination{
@@ -107,6 +114,36 @@ func (p *Provider) Send(ctx context.Context, email *core.Email) (*core.SendResul
 	output, err := p.client.SendEmail(ctx, input)
 	if err != nil {
 		return nil, core.NewProviderError("aws_ses", "send_error", "failed to send email: "+err.Error())
+	}
+
+	return &core.SendResult{
+		MessageID: aws.ToString(output.MessageId),
+		Provider:  p.Name(),
+		Timestamp: time.Now(),
+	}, nil
+}
+
+// sendRaw sends email as a MIME message built by the message package, via
+// SendRawEmail.
+func (p *Provider) sendRaw(ctx context.Context, email *core.Email) (*core.SendResult, error) {
+	msg, err := message.Build(email)
+	if err != nil {
+		return nil, core.NewProviderError("aws_ses", "build_error", "failed to build message: "+err.Error())
+	}
+
+	// Envelope recipients include Bcc, which the message headers omit.
+	input := &ses.SendRawEmailInput{
+		Source:       aws.String(email.From.String()),
+		Destinations: p.convertAddresses(email.AllRecipients()),
+		RawMessage:   &types.RawMessage{Data: msg},
+	}
+	if configSet := p.config.Get("configuration_set"); configSet != "" {
+		input.ConfigurationSetName = aws.String(configSet)
+	}
+
+	output, err := p.client.SendRawEmail(ctx, input)
+	if err != nil {
+		return nil, core.NewProviderError("aws_ses", "send_error", "failed to send raw email: "+err.Error())
 	}
 
 	return &core.SendResult{

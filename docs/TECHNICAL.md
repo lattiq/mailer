@@ -63,8 +63,12 @@ mailer/
 ├── internal/                 # Private implementation
 │   ├── core/               # Core types and interfaces
 │   │   └── types.go        # Core type definitions
+│   ├── message/            # Raw RFC 5322/MIME message builder (SMTP, SES raw)
+│   │   └── message.go
 │   └── providers/          # Provider implementations
 │       ├── provider.go     # Provider interface
+│       ├── dryrun/         # Logs instead of sending (local dev, tests)
+│       │   └── provider.go
 │       ├── ses/            # AWS SES provider
 │       │   └── provider.go
 │       ├── sendgrid/       # SendGrid provider
@@ -199,6 +203,33 @@ func (p *sesProvider) Send(ctx context.Context, email *Email) (*SendResult, erro
 }
 ```
 
+### Message Building and Attachments
+
+Providers that send a raw message (SMTP, and SES via `SendRawEmail`) share `internal/message.Build`, which turns a `core.Email` into an RFC 5322 message. Bodies are quoted-printable encoded, the subject and header values are RFC 2047 encoded when non-ASCII, custom headers are written in sorted order, and Bcc is left out of the headers (callers pass it as an envelope recipient). The MIME tree adds each layer only when needed:
+
+```
+multipart/mixed            regular attachments
+└ multipart/related        inline images, referenced from the HTML as cid:<Content-ID>
+  └ multipart/alternative  text and HTML bodies
+```
+
+API-based providers map attachments to their own request formats:
+
+| Provider | How attachments and headers are sent |
+|----------|--------------------------------------|
+| SMTP | Raw message from `message.Build` |
+| SES | `SendEmail` for plain emails; `SendRawEmail` with `message.Build` when there are attachments, custom headers or priority headers (`SendEmail` cannot carry them) |
+| SendGrid | Base64 attachments with `inline`/`attachment` disposition and `content_id` |
+| Mailgun | `inline` and `attachment` form files; Mailgun uses an inline file's name as its Content-ID, so inline files are named after the Content-ID |
+| Dry run | Logs attachment names and each inline image's `cid:` |
+
+Shared rules live on the core types so every provider behaves the same:
+
+- `Attachment.ReadData` rewinds seekable readers before reading, so retries resend the full content.
+- `Attachment.InlineContentID` falls back to the filename when `ContentID` is empty.
+- `Email.HeadersWithPriority` adds `X-Priority`/`Importance` for `PriorityHigh` and `PriorityUrgent` only (`PriorityLow` is the zero value and indistinguishable from unset); custom headers override them.
+- `Email.Validate` and `ValidateHeader` reject line breaks in the subject and header values, invalid header names, and custom headers that override mailer-set ones. `message.Build` re-checks line breaks before writing.
+
 ## Template System
 
 ### Template Engine Design
@@ -212,6 +243,8 @@ type TemplateRequest struct {
     Subject     string  // Optional: can be in template
     Data        interface{}
     Options     *TemplateOptions
+    Headers     map[string]string
+    Attachments []Attachment // inline images are referenced as {{cid "id"}}
 }
 
 // TemplateOptions provides template rendering options
@@ -222,6 +255,8 @@ type TemplateOptions struct {
     Helpers     map[string]interface{}
 }
 ```
+
+HTML templates use `html/template`. Besides the string, math and comparison helpers, the `cid` function returns a `cid:` URL for an inline attachment (`<img src="{{cid "logo"}}">`); `html/template` would otherwise replace the `cid:` scheme with `#ZgotmplZ`.
 
 ### Template File Structure
 
@@ -511,7 +546,7 @@ For integration tests, use test-specific provider credentials or containerized t
 ### Input Validation
 
 - Email address format validation (RFC 5322 compliant)
-- Header injection prevention
+- Header injection prevention: line breaks are rejected in the subject and custom headers, and custom headers cannot override mailer-set headers
 - Template injection protection
 - File attachment validation
 
