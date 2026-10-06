@@ -324,7 +324,7 @@ make build         # verify the package compiles
 make test          # run tests
 make lint          # run golangci-lint
 make check         # lint + test (CI gate)
-make security      # SAST: govulncheck + gosec (high severity)
+make sast          # SAST: govulncheck + gosec (high severity)
 make sbom          # CycloneDX SBOM (syft) + vulnerability scan (grype, fails on High)
 make ci            # everything above: run before every commit
 make fix           # format, lint --fix, and go mod tidy
@@ -333,7 +333,7 @@ make patch         # bump patch version and create a git tag
 
 Run `make help` to see the full target list.
 
-`make ci` has no GitHub workflow behind it yet, so run it locally before committing. `make sbom` needs `syft` and `grype` (`brew install syft grype`). govulncheck also reports vulnerabilities in the Go standard library you build with, so keep your Go toolchain on the latest patch release.
+Run `make ci` before committing: GitHub Actions (`.github/workflows/ci.yaml`) runs the same targets on every push and PR, plus the tests on the minimum Go version in `go.mod`. `make sbom` needs `syft` and `grype` (`brew install syft grype`). govulncheck also reports vulnerabilities in the Go standard library you build with, so keep your Go toolchain on the latest patch release.
 
 ## Observability
 

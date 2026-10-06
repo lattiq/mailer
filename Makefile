@@ -1,4 +1,4 @@
-.PHONY: help install build test format lint check fix clean version patch minor major release-version bench test-coverage security sbom ci
+.PHONY: help install build test format lint check fix clean version patch minor major release-version bench test-coverage sast sbom ci
 
 GO ?= go
 
@@ -101,7 +101,7 @@ GOVULNCHECK_VERSION ?= v1.8.0
 GOSEC_VERSION ?= v2.29.0
 SBOM_FILE := build/mailer-sbom.cyclonedx.json
 
-security: ## Run SAST (govulncheck, gosec high severity)
+sast: ## SAST: govulncheck + gosec (high severity)
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 	$(GO) run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) -quiet -severity high -confidence medium -exclude-dir=.scratch ./...
 
@@ -113,4 +113,4 @@ sbom: ## Generate CycloneDX SBOM and fail on High vulnerabilities (needs syft, g
 	grype sbom:$(SBOM_FILE) --fail-on high
 	@echo "SBOM: $(SBOM_FILE)"
 
-ci: check security sbom ## Run every pre-commit check (lint, test, SAST, SBOM)
+ci: check sast sbom ## Run every pre-commit check (lint, test, SAST, SBOM)
